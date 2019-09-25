@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,8 +18,9 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
-using ClassicUO.Utility;
+
 using System;
 using System.Collections.Generic;
 
@@ -37,7 +39,7 @@ namespace ClassicUO.Network
             _pending = new Queue<Gram>();
         }
 
-        public bool IsFlushReady => _pending.Count == 0 && _buffered != null;
+        public bool IsFlushReady => _pending.Count >= 0 && _buffered != null;
 
         public bool IsEmpty => _pending.Count == 0 && _buffered == null;
 
@@ -94,9 +96,11 @@ namespace ClassicUO.Network
 
             if (buffer.Length - offset < length)
                 throw new ArgumentException("Offset and length do not point to a valid segment within the buffer.");
+
             int existingBytes = _pending.Count * _CoalesceBufferSize + (_buffered?.Length ?? 0);
 
             if (existingBytes + length > PendingCap) throw new CapacityExceededException();
+
             Gram gram = null;
 
             while (length > 0)
@@ -128,7 +132,7 @@ namespace ClassicUO.Network
             while (_pending.Count > 0) _pending.Dequeue().Release();
         }
 
-        public class Gram
+        internal class Gram
         {
             private static readonly Stack<Gram> _Pool = new Stack<Gram>();
 
@@ -182,7 +186,7 @@ namespace ClassicUO.Network
     }
 
     [Serializable]
-    public sealed class CapacityExceededException : Exception
+    internal sealed class CapacityExceededException : Exception
     {
         public CapacityExceededException() : base("Too much data pending.")
         {

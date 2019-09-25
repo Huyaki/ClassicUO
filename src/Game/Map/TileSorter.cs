@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,22 +18,21 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
-using System.Collections.Generic;
 
 using ClassicUO.Game.GameObjects;
-using ClassicUO.IO.Resources;
-
-using Multi = ClassicUO.Game.GameObjects.Multi;
 
 namespace ClassicUO.Game.Map
 {
-    public static class TileSorter
+    internal static class TileSorter
     {
         // https://www.geeksforgeeks.org/merge-sort-for-doubly-linked-list/
 
         public static GameObject Sort(GameObject first)
-            => MergeSort(first);
+        {
+            return MergeSort(first);
+        }
 
         private static GameObject Merge(GameObject first, GameObject second)
         {
@@ -124,19 +124,23 @@ namespace ClassicUO.Game.Map
                 case Mobile mobile:
 
                     return (mobile.Z, 3 /* is sitting */, 2, mobile == World.Player ? 0x40000000 : (int) mobile.Serial.Value);
+
                 case Land tile:
 
                     return (tile.AverageZ, 0, 0, 0);
 
                 case Multi multi:
 
-                    return (multi.Z, 1, (multi.ItemData.Height > 0 ? 1 : 0) + (TileData.IsBackground(multi.ItemData.Flags) ? 0 : 1), 0);
+                    return (multi.Z, 1, (multi.ItemData.Height > 0 ? 1 : 0) + (multi.ItemData.IsBackground ? 0 : 1), 0);
+
                 case Static staticitem:
 
-                    return (staticitem.Z, 1, (staticitem.ItemData.Height > 0 ? 1 : 0) + (TileData.IsBackground(staticitem.ItemData.Flags) ? 0 : 1), staticitem.Index);
+                    return (staticitem.Z, 1, (staticitem.ItemData.Height > 0 ? 1 : 0) + (staticitem.ItemData.IsBackground ? 0 : 1), staticitem.Index);
+
                 case Item item:
 
-                    return (item.Z, item.IsCorpse ? 4 : 2, (item.ItemData.Height > 0 ? 1 : 0) + (TileData.IsBackground(item.ItemData.Flags) ? 0 : 1), (int) item.Serial.Value);
+                    return (item.Z, item.IsCorpse ? 4 : 2, (item.ItemData.Height > 0 ? 1 : 0) + (item.ItemData.IsBackground ? 0 : 1), (int) item.Serial.Value);
+
                 default:
 
                     return (0, 0, 0, 0);

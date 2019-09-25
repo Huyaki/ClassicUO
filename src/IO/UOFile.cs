@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,11 +18,13 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 using ClassicUO.IO.Resources;
 using ClassicUO.Utility;
@@ -29,33 +32,43 @@ using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.IO
 {
-    public abstract unsafe class UOFile : DataReader
+    internal unsafe class UOFile : DataReader
     {
-        private MemoryMappedViewAccessor _accessor;
-        private MemoryMappedFile _file;
+        private protected MemoryMappedViewAccessor _accessor;
+        private protected MemoryMappedFile _file;
 
-        protected UOFile(string filepath)
+        public UOFile(string filepath, bool loadfile = false)
         {
-            Path = filepath;
+            FilePath = filepath;
+
+            if (loadfile)
+                Load();
         }
 
-        public string Path { get; }
+        public string FilePath { get; private protected set; }
 
         public UOFileIndex3D[] Entries { get; protected set; }
 
         protected virtual void Load(bool loadentries = true)
         {
-            Log.Message(LogTypes.Trace, $"Loading file:\t\t{Path}");
-            FileInfo fileInfo = new FileInfo(Path);
+            Log.Message(LogTypes.Trace, $"Loading file:\t\t{FilePath}");
+
+            FileInfo fileInfo = new FileInfo(FilePath);
 
             if (!fileInfo.Exists)
-                throw new FileNotFoundException(fileInfo.FullName);
+            {
+                Log.Message(LogTypes.Error, $"{FilePath}  not exists.");
+
+                return;
+            }
+
             long size = fileInfo.Length;
 
             if (size > 0)
             {
-                _file = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
+                _file = MemoryMappedFile.CreateFromFile(File.OpenRead(fileInfo.FullName), null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
                 _accessor = _file.CreateViewAccessor(0, size, MemoryMappedFileAccess.Read);
+
                 byte* ptr = null;
 
                 try
@@ -71,7 +84,7 @@ namespace ClassicUO.IO
                 }
             }
             else
-                throw new Exception($"{Path} size must has > 0");
+                Log.Message(LogTypes.Error, $"{FilePath}  size must be > 0");
         }
 
         public virtual void Dispose()
@@ -80,30 +93,27 @@ namespace ClassicUO.IO
             _accessor.Dispose();
             _file.Dispose();
             UnloadEntries();
-            Log.Message(LogTypes.Trace, $"Unloaded:\t\t{Path}");
+            Log.Message(LogTypes.Trace, $"Unloaded:\t\t{FilePath}");
         }
 
         public void UnloadEntries()
         {
-            if (Entries != null)
-            {
-                Entries = null;
-            }
+            if (Entries != null) Entries = null;
         }
 
-        internal void Fill(byte[] buffer, int count)
+        [MethodImpl(256)]
+        internal void Fill(ref byte[] buffer, int count)
         {
-            fixed (byte* ptr = buffer)
+            for (int i = 0; i < count; i++)
             {
-                byte* start = ptr;
-                byte* end = &ptr[0] + count;
-                while (start != end)
-                {
-                    *start++ = ReadByte();
-                }
+                buffer[i] = ((byte*)PositionAddress)[i];
             }
+            //fixed (byte* ptr = buffer) Buffer.MemoryCopy((byte*) PositionAddress, ptr, count, count);
+
+            Position += count;
         }
 
+        [MethodImpl(256)]
         internal T[] ReadArray<T>(int count) where T : struct
         {
             T[] t = ReadArray<T>(Position, count);
@@ -112,6 +122,7 @@ namespace ClassicUO.IO
             return t;
         }
 
+        [MethodImpl(256)]
         internal T[] ReadArray<T>(long position, int count) where T : struct
         {
             T[] array = new T[count];
@@ -120,6 +131,7 @@ namespace ClassicUO.IO
             return array;
         }
 
+        [MethodImpl(256)]
         internal T ReadStruct<T>(long position) where T : struct
         {
             _accessor.Read(position, out T s);
@@ -127,13 +139,16 @@ namespace ClassicUO.IO
             return s;
         }
 
+        [MethodImpl(256)]
         internal (int, int, bool) SeekByEntryIndex(int entryidx)
         {
-            if (entryidx < 0 || entryidx >= Entries.Length)
+            if (entryidx < 0 || Entries == null || entryidx >= Entries.Length)
                 return (0, 0, false);
-            UOFileIndex3D e = Entries[entryidx];
+
+            ref readonly UOFileIndex3D e = ref Entries[entryidx];
 
             if (e.Offset < 0) return (0, 0, false);
+
             int length = e.Length & 0x7FFFFFFF;
             int extra = e.Extra;
 
@@ -145,6 +160,7 @@ namespace ClassicUO.IO
             }
 
             if (e.Length < 0) return (0, 0, false);
+
             Seek(e.Offset);
 
             return (length, extra, false);

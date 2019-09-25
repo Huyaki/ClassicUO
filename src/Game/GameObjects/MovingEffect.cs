@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,15 +18,14 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#endregion
-using System;
 
-using ClassicUO.Configuration;
-using ClassicUO.Game.Views;
+#endregion
+
+using System;
 
 namespace ClassicUO.Game.GameObjects
 {
-    internal class MovingEffect : GameEffect
+    internal sealed partial class MovingEffect : GameEffect
     {
         private uint _lastMoveTime;
 
@@ -54,10 +54,11 @@ namespace ClassicUO.Game.GameObjects
             SetTarget(xTarg, yTarg, zTarg);
         }
 
-        public MovingEffect(Serial src, Serial trg, int xSource, int ySource, int zSource, int xTarget, int yTarget, int zTarget, Graphic graphic, Hue hue) : this(graphic, hue)
+        public MovingEffect(Serial src, Serial trg, int xSource, int ySource, int zSource, int xTarget, int yTarget, int zTarget, Graphic graphic, Hue hue, bool fixedDir) : this(graphic, hue)
         {
             sbyte zSourceB = (sbyte) zSource;
             sbyte zTargB = (sbyte) zTarget;
+            FixedDir = fixedDir;
 
             if (src.IsValid)
             {
@@ -67,17 +68,15 @@ namespace ClassicUO.Game.GameObjects
                 {
                     SetSource(mobile.Position.X, mobile.Position.Y, mobile.Position.Z);
 
-                    if (mobile != World.Player && !mobile.IsMoving && (xSource | ySource | zSource) != 0)
-                    {
-                        mobile.Position = new Position((ushort) xSource, (ushort) ySource, zSourceB);
-                    }
+                    //if (mobile != World.Player && !mobile.IsMoving && (xSource | ySource | zSource) != 0)
+                    //    mobile.Position = new Position((ushort) xSource, (ushort) ySource, zSourceB);
                 }
                 else if (source is Item)
                 {
                     SetSource(source.Position.X, source.Position.Y, source.Position.Z);
 
-                    if ((xSource | ySource | zSource) != 0)
-                        source.Position = new Position((ushort) xSource, (ushort) ySource, zSourceB);
+                    //if ((xSource | ySource | zSource) != 0)
+                    //    source.Position = new Position((ushort) xSource, (ushort) ySource, zSourceB);
                 }
                 else
                     SetSource(xSource, ySource, zSourceB);
@@ -93,15 +92,15 @@ namespace ClassicUO.Game.GameObjects
                 {
                     SetTarget(target);
 
-                    if (mobile != World.Player && !mobile.IsMoving && (xTarget | yTarget | zTarget) != 0)
-                        mobile.Position = new Position((ushort) xTarget, (ushort) yTarget, zTargB);
+                    //if (mobile != World.Player && !mobile.IsMoving && (xTarget | yTarget | zTarget) != 0)
+                    //    mobile.Position = new Position((ushort) xTarget, (ushort) yTarget, zTargB);
                 }
                 else if (target is Item)
                 {
                     SetTarget(target);
 
-                    if ((xTarget | yTarget | zTarget) != 0)
-                        target.Position = new Position((ushort) xTarget, (ushort) yTarget, zTargB);
+                    //if ((xTarget | yTarget | zTarget) != 0)
+                    //    target.Position = new Position((ushort) xTarget, (ushort) yTarget, zTargB);
                 }
                 else
                     SetTarget(xTarget, yTarget, zTargB);
@@ -114,18 +113,17 @@ namespace ClassicUO.Game.GameObjects
 
         public bool Explode { get; set; }
 
+        public bool FixedDir { get; private set; }
+
         public byte MovingDelay { get; set; } = 20;
 
-        protected override View CreateView()
-        {
-            return new MovingEffectView(this);
-        }
 
         public override void Update(double totalMS, double frameMS)
         {
-            if (_lastMoveTime > totalMS)
+            if (_lastMoveTime > Engine.Ticks)
                 return;
-            _lastMoveTime = (uint) (totalMS + MovingDelay);
+
+            _lastMoveTime = Engine.Ticks + MovingDelay;
             base.Update(totalMS, frameMS);
             (int sx, int sy, int sz) = GetSource();
             (int tx, int ty, int tz) = GetTarget();
@@ -216,7 +214,7 @@ namespace ClassicUO.Game.GameObjects
             int newX = playerX + newCoordX;
             int newY = playerY + newCoordY;
 
-            if (newX == tx && newY == ty && sz == tz)
+            if ( (newX == tx && newY == ty && sz == tz) || (Target != null && Target.IsDestroyed))
             {
                 if (Explode)
                 {
@@ -224,7 +222,7 @@ namespace ClassicUO.Game.GameObjects
                     //Tile = World.Map.GetTile(tx, ty);
                 }
 
-                Dispose();
+                Destroy();
             }
             else
             {
@@ -251,9 +249,9 @@ namespace ClassicUO.Game.GameObjects
                     bool incZ = sz < tz;
 
                     if (incZ)
-                        totalOffsetZ = (tz - sz) * 4;
+                        totalOffsetZ = (tz - sz) << 2;
                     else
-                        totalOffsetZ = (sz - tz) * 4;
+                        totalOffsetZ = (sz - tz) << 2;
                     totalOffsetZ /= stepsCountX;
 
                     if (totalOffsetZ == 0)
@@ -277,44 +275,23 @@ namespace ClassicUO.Game.GameObjects
                     }
                 }
 
-                countY -= (int) Offset.Z + (tz - sz) * 4;
-                float angle = /*180.0f +*/ (float) (Math.Atan2(countY, countX) * 57.295780); //-((float)Math.Atan2(ty - sy, tx - sx) + (float)Math.PI * (1f / 4f));
-                AngleToTarget = -(float) (angle * Math.PI) / 180.0f;
+                countY -= (int) Offset.Z + ((tz - sz) << 2);
+                if (!FixedDir)
+                {
+                    float angle = (float)(Math.Atan2(countY, countX) * 57.295780);
+                    AngleToTarget = -(float)(angle * Math.PI) / 180.0f;
+                }
 
                 if (sx != newX || sy != newY)
                 {
                     sx = newX;
                     sy = newY;
 
-                    //X = (ushort) newX;
-                    //Y = (ushort) newY;
-                    //Tile = World.Map.GetTile(X, Y);
                     wantUpdateInRenderList = true;
                 }
 
                 if (wantUpdateInRenderList) SetSource(sx, sy, sz);
             }
-
-            //if (_timeUntilHit == 0f)
-            //{
-            //    _timeActive = 0f;
-            //    _timeUntilHit = (float) Math.Sqrt(Math.Pow(tx - sx, 2) + Math.Pow(ty - sy, 2) + Math.Pow(tz - sz, 2)) * 75f;
-            //}
-            //else
-            //    _timeActive += (float) frameMS;
-
-            //if (_timeActive >= _timeUntilHit)
-            //    Dispose();
-            //else
-            //{
-            //    float x = sx + _timeActive / _timeUntilHit * (tx - sx);
-            //    float y = sy + _timeActive / _timeUntilHit * (ty - sy);
-            //    float z = sz + _timeActive / _timeUntilHit * (tz - sz);
-            //    Position = new Position((ushort) x, (ushort) y, (sbyte) z);
-            //    Tile = World.Map.GetTile((int) x, (int) y);
-            //    Offset = new Vector3(x % 1, y % 1, z % 1);
-            //    AngleToTarget = -((float) Math.Atan2(ty - sy, tx - sx) + (float) Math.PI * (1f / 4f));
-            //}
         }
 
         private static void TileOffsetOnMonitorToXY(ref int ofsX, ref int ofsY, ref int x, ref int y)

@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,13 +18,14 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
 
 using System;
 
 namespace ClassicUO.Game.Data
 {
-    public readonly struct BuffIcon : IEquatable<BuffIcon>
+    internal readonly struct BuffIcon : IEquatable<BuffIcon>
     {
         public BuffIcon(Graphic graphic, long timer, string text)
         {
@@ -40,7 +42,7 @@ namespace ClassicUO.Game.Data
 
         public bool Equals(BuffIcon other)
         {
-            return Graphic.Equals(other.Graphic);
+            return Graphic == other.Graphic;
         }
     }
 }

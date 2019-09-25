@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,12 +18,14 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
 
 namespace ClassicUO.Utility
 {
-    public static class RandomHelper
+    internal static class RandomHelper
     {
         private static readonly Random _random = new Random();
 
@@ -31,7 +34,9 @@ namespace ClassicUO.Utility
             return _random.Next(low, high + 1);
         }
 
-        public static int GetValue() => _random.Next();
-
+        public static int GetValue()
+        {
+            return _random.Next();
+        }
     }
 }

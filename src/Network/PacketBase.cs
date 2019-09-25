@@ -1,5 +1,6 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,12 +18,14 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
 
 namespace ClassicUO.Network
 {
-    public abstract class PacketBase
+    internal abstract class PacketBase
     {
         protected abstract byte this[int index] { get; set; }
 
@@ -34,13 +37,13 @@ namespace ClassicUO.Network
 
         public int Position { get; protected set; }
 
-        protected abstract void EnsureSize(int length);
-        public abstract byte[] ToArray();
+        protected abstract bool EnsureSize(int length);
+        public abstract ref byte[] ToArray();
 
-        public void Skip(int lengh)
+        public void Skip(int length)
         {
-            EnsureSize(lengh);
-            Position += lengh;
+            EnsureSize(length);
+            Position += length;
         }
 
         public void Seek(int index)
@@ -55,10 +58,11 @@ namespace ClassicUO.Network
             this[Position++] = v;
         }
 
-        public void WriteBytes( byte[] buffer, int v, int length )
+        public void WriteBytes(byte[] buffer, int offset, int length)
         {
             EnsureSize(length);
-            for ( int i = v; i < length; i++ )
+
+            for (int i = offset; i < length; i++)
                 this[Position++] = buffer[i];
         }
 
@@ -144,14 +148,20 @@ namespace ClassicUO.Network
         {
             EnsureSize(length);
 
-            if (value.Length > length) throw new ArgumentOutOfRangeException();
+            //the string is automatically resized based on length provided
+            /*if (value.Length > length)
+                throw new ArgumentOutOfRangeException();*/
 
             fixed (char* ptr = value)
             {
                 short* buff = (short*) ptr;
+                int pos = 0;
 
-                while (*buff != 0)
+                while (*buff != 0 && pos < length)
+                {
                     WriteUShort((ushort) *buff++);
+                    pos++;
+                }
             }
 
             if (value.Length < length)

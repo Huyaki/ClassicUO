@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,13 +18,22 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
+using System.Diagnostics;
+
+using ClassicUO.Renderer;
 
 namespace ClassicUO.Network
 {
-    public class NetStatistics
+    internal class NetStatistics
     {
+        private readonly Stopwatch _pingStopwatch = new Stopwatch();
+
+        private readonly RenderedText _renderedText = RenderedText.Create(String.Empty, style: FontStyle.BlackBorder);
+
         private uint _currentTotalBytesSended, _currentTotalByteReceived, _currentTotalPacketsSended, _currentTotalPacketsReceived;
         private uint _lastTotalBytesSended, _lastTotalByteReceived, _lastTotalPacketsSended, _lastTotalPacketsReceived;
 
@@ -36,6 +46,31 @@ namespace ClassicUO.Network
         public uint TotalPacketsSended { get; set; }
 
         public uint TotalPacketsReceived { get; set; }
+
+        public uint Ping { get; private set; }
+
+
+        public void PingReceived()
+        {
+            Ping = (uint) _pingStopwatch.ElapsedMilliseconds;
+            _pingStopwatch.Stop();
+        }
+
+        public void SendPing()
+        {
+            if (!NetClient.Socket.IsConnected || NetClient.Socket.IsDisposed)
+                return;
+
+            _pingStopwatch.Restart();
+            NetClient.Socket.Send(new PPing());
+        }
+
+        public void Draw(UltimaBatcher2D batcher, int x, int y)
+        {
+            batcher.Begin();
+            _renderedText.Draw(batcher, x, y);
+            batcher.End();
+        }
 
         public void Reset()
         {
@@ -55,6 +90,20 @@ namespace ClassicUO.Network
             _lastTotalBytesSended = TotalBytesSended;
             _lastTotalPacketsReceived = TotalPacketsReceived;
             _lastTotalPacketsSended = TotalPacketsSended;
+
+            ushort hue;
+
+            if (Ping < 100)
+                hue = 0x44; // green
+            else if (Ping < 150)
+                hue = 0x034; // yellow
+            else if (Ping < 200)
+                hue = 0x0031; // orange
+            else
+                hue = 0x20; // red
+
+            _renderedText.Hue = hue;
+            _renderedText.Text = $"Ping: {Ping} ms\nIn: {GetSizeAdaptive(_lastTotalByteReceived - _currentTotalByteReceived)}   Out: {GetSizeAdaptive(_lastTotalBytesSended - _currentTotalBytesSended)}";
         }
 
         public override string ToString()

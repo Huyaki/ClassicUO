@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,41 +18,79 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#endregion
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-using ClassicUO.Game.Gumps.UIGumps;
+#endregion
+
+using System;
+using System.IO;
+
 using ClassicUO.Utility;
-using ClassicUO.Utility.Coroutines;
+using ClassicUO.Utility.Logging;
+
+using Newtonsoft.Json;
 
 namespace ClassicUO.Configuration
 {
-    public class ProfileManager
+    internal class ProfileManager
     {
         public Profile Current { get; private set; }
 
-        public List<Gump> Load(string servername, string username, string charactername)
+        public void Load(string servername, string username, string charactername)
         {
             string path = FileSystemHelper.CreateFolderIfNotExists(Engine.ExePath, "Data", "Profiles", username, servername, charactername);
 
-            if (!File.Exists(Path.Combine(path, "settings.json")))
+
+
+            // this is a temporary patch to change the profile settings name safety
+            string fileToLoad = Path.Combine(path, "settings.json");
+            string newPath = Path.Combine(path, "profile.json");
+
+            if (File.Exists(newPath))
             {
-                Current = new Profile(username, servername, charactername);
+                if (File.Exists(fileToLoad))
+                {
+                    try
+                    {
+                        File.Delete(fileToLoad);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Message(LogTypes.Warning, $"Failed to delete file: '{fileToLoad}'");
+                    }
+                }
+
+                fileToLoad = newPath;
             }
+            //
+
+
+
+            if (!File.Exists(fileToLoad))
+                Current = new Profile(username, servername, charactername);
             else
             {
-                Current = ConfigurationResolver.Load<Profile>(Path.Combine(path, "settings.json")) ?? new Profile(username, servername, charactername);
-
-                return Current.ReadGumps();               
+                Current = ConfigurationResolver.Load<Profile>(fileToLoad,
+                                                              new JsonSerializerSettings
+                                                              {
+                                                                  TypeNameHandling = TypeNameHandling.All,
+                                                                  MetadataPropertyHandling = MetadataPropertyHandling.ReadAhead
+                                                              });
+                if (Current == null)
+                {
+                    Current = new Profile(username, servername, charactername);
+                }
+                else
+                {
+                    Current.Username = username;
+                    Current.ServerName = servername;
+                    Current.CharacterName = charactername;
+                }
             }
+        }
 
-            return null;
+        public void UnLoadProfile()
+        {
+            Current = null;
         }
     }
 }

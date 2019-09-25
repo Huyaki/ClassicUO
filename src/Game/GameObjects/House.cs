@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,18 +18,17 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
-using ClassicUO.Game.Scenes;
-using ClassicUO.Utility.Coroutines;
+using ClassicUO.Game.Managers;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public sealed class House : IEquatable<Serial>, IDisposable
+    internal sealed class House : IEquatable<Serial>
     {
         public House(Serial serial, uint revision, bool isCustom)
         {
@@ -38,23 +38,46 @@ namespace ClassicUO.Game.GameObjects
         }
 
         public Serial Serial { get; }
-        public uint Revision { get; private set; }
+        public uint Revision { get; set; }
         public List<Multi> Components { get; } = new List<Multi>();
-        public bool IsCustom { get; }
+        public bool IsCustom { get; set; }
 
-        public void Generate()
+
+        public bool Equals(Serial other)
         {
-            Components.ForEach(s =>
-            {
-                s.AddToTile();
-            });
+            return Serial == other;
         }
 
-        public bool Equals(Serial other) => Serial == other;
-
-        public void Dispose()
+        public void Generate(bool recalculate = false)
         {
-            Components.ForEach(s => s.Dispose());
+            Item item = World.Items.Get(Serial);
+
+            foreach (Multi s in Components)
+            {
+                if (item != null)
+                {
+                    if (recalculate)
+                        s.Position = new Position((ushort) (item.X + s.MultiOffsetX), (ushort) (item.Y + s.MultiOffsetY), (sbyte) (item.Position.Z + s.MultiOffsetZ));
+                    s.Hue = item.Hue;
+                }
+
+                s.AddToTile();
+            }
+        }
+
+        public void ClearComponents()
+        {
+            Item item = World.Items.Get(Serial);
+
+            if (item != null && !item.IsDestroyed)
+                item.WantUpdateMulti = true;
+
+
+            foreach (Multi s in Components)
+            {
+                s.Destroy();
+            }
+
             Components.Clear();
         }
     }

@@ -1,5 +1,6 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,12 +18,14 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
 
 namespace ClassicUO.Network
 {
-    public class PacketWriter : PacketBase
+    internal class PacketWriter : PacketBase
     {
         private byte[] _data;
 
@@ -37,9 +40,7 @@ namespace ClassicUO.Network
             set
             {
                 if (index == 0)
-                {
                     SetPacketId(value);
-                }
                 else
                     _data[index] = value;
             }
@@ -56,14 +57,14 @@ namespace ClassicUO.Network
             Position = IsDynamic ? 3 : 1;
         }
 
-        public override byte[] ToArray()
+        public override ref byte[] ToArray()
         {
             if (IsDynamic && Length != Position)
                 Array.Resize(ref _data, Position);
 
             WriteSize();
 
-            return _data;
+            return ref _data;
         }
 
         public void WriteSize()
@@ -75,16 +76,20 @@ namespace ClassicUO.Network
             }
         }
 
-        protected override void EnsureSize(int length)
+        protected override bool EnsureSize(int length)
         {
-            if (length < 0) throw new ArgumentOutOfRangeException("length");
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length));
 
             if (IsDynamic)
             {
                 while (Position + length > Length)
                     Array.Resize(ref _data, Length + length * 2);
+
+                return false;
             }
-            else if (Position + length > Length) throw new ArgumentOutOfRangeException("length");
+
+            return Position + length > Length;
         }
     }
 }

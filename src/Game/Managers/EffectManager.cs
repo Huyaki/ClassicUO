@@ -1,5 +1,6 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,6 +18,7 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
 
 using System.Collections.Generic;
@@ -39,14 +41,14 @@ namespace ClassicUO.Game.Managers
                 GameEffect effect = _effects[i];
                 effect.Update(totalMS, frameMS);
 
-                if (effect.IsDisposed)
+                if (effect.IsDestroyed)
                 {
                     _effects.RemoveAt(i--);
 
                     if (effect.Children.Count > 0)
                     {
-                        for (int j = 0; j < effect.Children.Count; j++)
-                            _effects.Add(effect.Children[j]);
+                        foreach (GameEffect t in effect.Children)
+                            _effects.Add(t);
                     }
                 }
             }
@@ -67,19 +69,23 @@ namespace ClassicUO.Game.Managers
                     if (speed == 0)
                         speed++;
 
-                    effect = new MovingEffect(source, target, srcPos.X, srcPos.Y, srcPos.Z, targPos.X, targPos.Y, targPos.Z, graphic, hue)
+                    effect = new MovingEffect(source, target, srcPos.X, srcPos.Y, srcPos.Z, targPos.X, targPos.Y, targPos.Z, graphic, hue, fixedDir)
                     {
-                        Blend = blendmode, MovingDelay = speed
+                        Blend = blendmode,
+                        MovingDelay = (byte) (speed)
                     };
 
                     if (doesExplode)
                         effect.AddChildEffect(new AnimatedItemEffect(target, targPos.X, targPos.Y, targPos.Z, 0x36Cb, hue, 9));
 
+                    effect.Update(Engine.Ticks, 0);
                     break;
+
                 case GraphicEffectType.Lightning:
                     effect = new LightningEffect(source, srcPos.X, srcPos.Y, srcPos.Z, hue);
 
                     break;
+
                 case GraphicEffectType.FixedXYZ:
 
                     if (graphic <= 0)
@@ -91,6 +97,7 @@ namespace ClassicUO.Game.Managers
                     };
 
                     break;
+
                 case GraphicEffectType.FixedFrom:
 
                     if (graphic <= 0)
@@ -100,18 +107,21 @@ namespace ClassicUO.Game.Managers
                     {
                         Blend = blendmode
                     };
+
                     break;
+
                 case GraphicEffectType.ScreenFade:
                     Log.Message(LogTypes.Warning, "Unhandled 'Screen Fade' effect.");
 
                     break;
+
                 default:
                     Log.Message(LogTypes.Warning, "Unhandled effect.");
 
                     return;
             }
 
-            
+
             Add(effect);
         }
 
@@ -119,6 +129,12 @@ namespace ClassicUO.Game.Managers
         {
             if (effect != null)
                 _effects.Add(effect);
+        }
+
+        public void Clear()
+        {
+            _effects.ForEach(s => s.Destroy());
+            _effects.Clear();
         }
     }
 }

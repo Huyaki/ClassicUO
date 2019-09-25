@@ -1,5 +1,6 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -17,50 +18,53 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 #endregion
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 using ClassicUO.Game.Data;
-using ClassicUO.Interfaces;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public abstract class Entity : GameObject
+    internal abstract class Entity : GameObject
     {
-        private readonly ConcurrentDictionary<int, Property> _properties = new ConcurrentDictionary<int, Property>();
         protected Delta _delta;
         private Direction _direction;
+        private Item[] _equipment;
         private Flags _flags;
-        private Graphic _graphic;
         private Hue _hue;
         private string _name;
 
-
-        protected Entity(Serial serial)
-        {
-            Serial = serial;
-            Items = new EntityCollection<Item>();
-        }
-
         protected long LastAnimationChangeTime { get; set; }
 
-        public EntityCollection<Item> Items { get; }
+        public EntityCollection<Item> Items { get; protected set; }
 
-        public Serial Serial { get; }
+        public bool HasEquipment => _equipment != null;
 
-        public IReadOnlyList<Property> Properties => (IReadOnlyList<Property>) _properties.Values;
+        public Item[] Equipment
+        {
+            get => _equipment ?? (_equipment = new Item[(int) Layer.Bank + 0x11]);
+            set => _equipment = value;
+        }
+
+        public Serial Serial { get; set; }
+        public bool IsClicked { get; set; }
+
+        public List<Property> Properties { get; } = new List<Property>();
 
         public override Graphic Graphic
         {
-            get => _graphic;
+            get => base.Graphic;
             set
             {
-                if (_graphic != value)
+                if (base.Graphic != value)
                 {
-                    _graphic = value;
+                    base.Graphic = value;
                     _delta |= Delta.Appearance;
                 }
             }
@@ -73,9 +77,10 @@ namespace ClassicUO.Game.GameObjects
             {
                 ushort fixedColor = (ushort) (value & 0x3FFF);
 
-                if (fixedColor > 0)
+                if (fixedColor != 0)
                 {
-                    if (fixedColor >= 0x0BB8) fixedColor = 1;
+                    if (fixedColor >= 0x0BB8)
+                        fixedColor = 1;
                     fixedColor |= (ushort) (value & 0xC000);
                 }
                 else
@@ -102,18 +107,7 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
-        //public override Position Position
-        //{
-        //    get => base.Position;
-        //    set
-        //    {
-        //        if (base.Position != value)
-        //        {
-        //            base.Position = value;
-        //            _delta |= Delta.Position;
-        //        }
-        //    }
-        //}
+        public bool IsHidden => (Flags & Flags.Hidden) != 0;
 
         public Direction Direction
         {
@@ -124,6 +118,7 @@ namespace ClassicUO.Game.GameObjects
                 {
                     _direction = value;
                     _delta |= Delta.Position;
+                    OnDirectionChanged();
                 }
             }
         }
@@ -145,13 +140,21 @@ namespace ClassicUO.Game.GameObjects
 
         public uint PropertiesHash { get; set; }
 
+        protected Entity(Serial serial)
+        {
+            Serial = serial;
+            Items = new EntityCollection<Item>();
+        }
+
+
         public event EventHandler AppearanceChanged, PositionChanged, AttributesChanged, PropertiesChanged;
 
-        public void UpdateProperties(IEnumerable<Property> props)
+        public void UpdateProperties(List<Property> props)
         {
-            _properties.Clear();
-            int temp = 0;
-            foreach (Property p in props) _properties.TryAdd(temp++, p);
+            Properties.Clear();
+            if (props != null)
+                foreach (Property p in props)
+                    Properties.Add(p);
             _delta |= Delta.Properties;
         }
 
@@ -161,6 +164,23 @@ namespace ClassicUO.Game.GameObjects
             if (d.HasFlag(Delta.Position)) PositionChanged.Raise(this);
             if (d.HasFlag(Delta.Attributes)) AttributesChanged.Raise(this);
             if (d.HasFlag(Delta.Properties)) PropertiesChanged.Raise(this);
+        }
+
+
+        public override void Update(double totalMS, double frameMS)
+        {
+            base.Update(totalMS, frameMS);
+
+            if (UseObjectHandles && !ObjectHandlesOpened)
+            {
+                //NameOverheadGump gump = Engine.UI.GetByLocalSerial<NameOverheadGump>(Serial);
+
+                //if (gump == null)
+                {
+                    Engine.UI.Add(new NameOverheadGump(this));
+                    ObjectHandlesOpened = true;
+                }
+            }
         }
 
         protected override void OnPositionChanged()
@@ -178,10 +198,11 @@ namespace ClassicUO.Game.GameObjects
             _delta = Delta.None;
         }
 
-        public override void Dispose()
+        public override void Destroy()
         {
-            _properties.Clear();
-            base.Dispose();
+            _equipment = null;
+            Properties.Clear();
+            base.Destroy();
         }
 
 
@@ -197,10 +218,10 @@ namespace ClassicUO.Game.GameObjects
 
         public override int GetHashCode()
         {
-            return Serial.GetHashCode();
+            return (int) Serial.Value;
         }
 
-        public abstract void ProcessAnimation();
+        public abstract void ProcessAnimation(out byte dir, bool evalutate = false);
 
         public abstract Graphic GetGraphicForAnimation();
 
